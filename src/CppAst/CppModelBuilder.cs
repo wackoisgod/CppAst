@@ -5,9 +5,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Text;
-using ClangSharp;
+using ClangSharp.Interop;
 
 namespace CppAst
 {
@@ -35,7 +34,7 @@ namespace CppAst
 
         public CppCompilation RootCompilation => _rootCompilation;
 
-        public CXChildVisitResult VisitTranslationUnit(CXCursor cursor, CXCursor parent, CXClientData data)
+        public unsafe CXChildVisitResult VisitTranslationUnit(CXCursor cursor, CXCursor parent, void* data)
         {
             Debug.Assert(parent.Kind == CXCursorKind.CXCursor_TranslationUnit || parent.Kind == CXCursorKind.CXCursor_UnexposedDecl);
 
@@ -51,10 +50,10 @@ namespace CppAst
             return VisitMember(cursor, parent, data);
         }
 
-        private CppContainerContext GetOrCreateDeclarationContainer(CXCursor cursor, CXClientData data)
+        private unsafe CppContainerContext GetOrCreateDeclarationContainer(CXCursor cursor, CXClientData data)
         {
             CppContainerContext containerContext;
-            var fullName = cursor.UnifiedSymbolResolution.CString;
+            var fullName = cursor.Usr.CString;
             if (_containers.TryGetValue(fullName, out containerContext))
             {
                 return containerContext;
@@ -156,20 +155,21 @@ namespace CppAst
             throw new InvalidOperationException($"The element `{context.Container}` doesn't match the expected type `{typeof(TCppElement)}");
         }
 
-        private CppNamespace VisitNamespace(CXCursor cursor, CXCursor parent, CXClientData data)
+        private unsafe CppNamespace VisitNamespace(CXCursor cursor, CXCursor parent, CXClientData data)
         {
             // Create the container if not already created
             var ns = GetOrCreateDeclarationContainer<CppNamespace>(cursor, data, out var context);
+            ParseAttributes(cursor)?.ForEach(x => ns.Attributes.Add(x));
             cursor.VisitChildren(VisitMember, data);
             return ns;
         }
 
-        private CppClass VisitClassDecl(CXCursor cursor, CXCursor parent, CXClientData data)
+        private unsafe CppClass VisitClassDecl(CXCursor cursor, CXCursor parent, CXClientData data)
         {
             var cppStruct = GetOrCreateDeclarationContainer<CppClass>(cursor, data, out var context);
             if (cursor.IsDefinition && !cppStruct.IsDefinition)
             {
-                cppStruct.Attributes =  ParseAttributes(cursor);
+                ParseAttributes(cursor)?.ForEach(x => cppStruct.Attributes.Add(x));
                 cppStruct.IsDefinition = true;
                 cppStruct.SizeOf = (int)cursor.Type.SizeOf;
                 context.IsChildrenVisited = true;
@@ -178,29 +178,29 @@ namespace CppAst
             return cppStruct;
         }
 
-        private CXChildVisitResult VisitMember(CXCursor cursor, CXCursor parent, CXClientData data)
+        private unsafe CXChildVisitResult VisitMember(CXCursor cursor, CXCursor parent, void* data)
         {
             CppElement element = null;
-
+   
             switch (cursor.Kind)
             {
                 case CXCursorKind.CXCursor_FieldDecl:
                 case CXCursorKind.CXCursor_VarDecl:
                 {
-                    var containerContext = GetOrCreateDeclarationContainer(parent, data);
-                    element = VisitFieldOrVariable(containerContext, cursor, parent, data);
+                    var containerContext = GetOrCreateDeclarationContainer(parent, (CXClientData)data);
+                    element = VisitFieldOrVariable(containerContext, cursor, parent, (CXClientData)data);
                     break;
                 }
 
                 case CXCursorKind.CXCursor_EnumConstantDecl:
                 {
-                    var containerContext = GetOrCreateDeclarationContainer(parent, data);
+                    var containerContext = GetOrCreateDeclarationContainer(parent, (CXClientData)data);
                     var cppEnum = (CppEnum) containerContext.Container;
                     var enumItem = new CppEnumItem(GetCursorSpelling(cursor), cursor.EnumConstantDeclValue);
 
                     CppExpression enumItemExpression;
                     CppValue enumValue;
-                    VisitInitValue(cursor, data, out enumItemExpression, out enumValue);
+                    VisitInitValue(cursor, (CXClientData)data, out enumItemExpression, out enumValue);
                     enumItem.ValueExpression = enumItemExpression;
 
                     cppEnum.Items.Add(enumItem);
@@ -209,29 +209,29 @@ namespace CppAst
                 }
 
                 case CXCursorKind.CXCursor_Namespace:
-                    element = VisitNamespace(cursor, parent, data);
+                    element = VisitNamespace(cursor, parent, (CXClientData)data);
                     break;
 
                 case CXCursorKind.CXCursor_ClassTemplate:
                 case CXCursorKind.CXCursor_ClassDecl:
                 case CXCursorKind.CXCursor_StructDecl:
                 case CXCursorKind.CXCursor_UnionDecl:
-                    element = VisitClassDecl(cursor, parent, data);
+                    element = VisitClassDecl(cursor, parent, (CXClientData)data);
                     break;
 
                 case CXCursorKind.CXCursor_EnumDecl:
-                    element = VisitEnumDecl(cursor, parent, data);
+                    element = VisitEnumDecl(cursor, parent, (CXClientData)data);
                     break;
 
                 case CXCursorKind.CXCursor_TypedefDecl:
-                    element = VisitTypeDefDecl(cursor, parent, data);
+                    element = VisitTypeDefDecl(cursor, parent, (CXClientData)data);
                     break;
 
                 case CXCursorKind.CXCursor_FunctionTemplate:
                 case CXCursorKind.CXCursor_FunctionDecl:
                 case CXCursorKind.CXCursor_Constructor:
                 case CXCursorKind.CXCursor_CXXMethod:
-                    element = VisitFunctionDecl(cursor, parent, data);
+                    element = VisitFunctionDecl(cursor, parent, (CXClientData)data);
                     break;
 
                 case CXCursorKind.CXCursor_UsingDirective:
@@ -242,8 +242,8 @@ namespace CppAst
 
                 case CXCursorKind.CXCursor_CXXBaseSpecifier:
                 {
-                    var cppClass = (CppClass)GetOrCreateDeclarationContainer(parent, data).Container;
-                    var baseType = GetCppType(cursor.Type.Declaration, cursor.Type, cursor, data);
+                    var cppClass = (CppClass)GetOrCreateDeclarationContainer(parent, (CXClientData)data).Container;
+                    var baseType = GetCppType(cursor.Type.Declaration, cursor.Type, cursor, (CXClientData)data);
                     var cppBaseType = new CppBaseType(baseType)
                     {
                         Visibility = GetVisibility(cursor.CXXAccessSpecifier),
@@ -255,7 +255,7 @@ namespace CppAst
 
                 case CXCursorKind.CXCursor_CXXAccessSpecifier:
                 {
-                    var containerContext = GetOrCreateDeclarationContainer(parent, data);
+                    var containerContext = GetOrCreateDeclarationContainer(parent, (CXClientData)data);
                     containerContext.CurrentVisibility = GetVisibility(cursor.CXXAccessSpecifier);
                 }
 
@@ -508,7 +508,7 @@ namespace CppAst
             }
         }
 
-        private CppMacro ParseMacro(CXCursor cursor)
+        private unsafe CppMacro ParseMacro(CXCursor cursor)
         {
             // TODO: reuse internal class Tokenizer
 
@@ -519,7 +519,7 @@ namespace CppAst
             // Try to extend the parsing of the macro to the end of line in order to recover comments
             originalRange.End.GetFileLocation(out var startFile, out var endLine, out var endColumn, out var startOffset);
             var range = originalRange;
-            if (startFile.Pointer != IntPtr.Zero)
+            if (startFile.Handle != IntPtr.Zero)
             {
                 var nextLineLocation = clang.getLocation(tu, startFile, endLine + 1, 1);
                 if (!nextLineLocation.Equals(CXSourceLocation.Null))
@@ -528,9 +528,7 @@ namespace CppAst
                 }
             }
 
-            CXToken[] tokens = null;
-            tu.Tokenize(range, out tokens);
-
+            var  tokens = tu.Tokenize(range);
             var name = GetCursorSpelling(cursor);
             var cppMacro = new CppMacro(name);
 
@@ -685,7 +683,7 @@ namespace CppAst
             cppField.Attributes = ParseAttributes(cursor);
         }
 
-        private void VisitInitValue(CXCursor cursor, CXClientData data, out CppExpression expression, out CppValue value)
+        private unsafe void VisitInitValue(CXCursor cursor, CXClientData data, out CppExpression expression, out CppValue value)
         {
             CppExpression localExpression = null;
             CppValue localValue = null;
@@ -694,14 +692,14 @@ namespace CppAst
             {
                 if (IsExpression(initCursor))
                 {
-                    localExpression = VisitExpression(initCursor, varCursor, clientData);
+                    localExpression = VisitExpression(initCursor, varCursor, (CXClientData)clientData);
                     return CXChildVisitResult.CXChildVisit_Break;
                 }
                 return CXChildVisitResult.CXChildVisit_Continue;
             }, data);
 
             // Still tries to extract the compiled value
-            var resultEval = clang.Cursor_Evaluate(cursor);
+            var resultEval = cursor.Evaluate;
             switch (resultEval.Kind)
             {
                 case CXEvalResultKind.CXEval_Int:
@@ -737,7 +735,7 @@ namespace CppAst
             return cursor.Kind >= CXCursorKind.CXCursor_FirstExpr && cursor.Kind <= CXCursorKind.CXCursor_LastExpr;
         }
 
-        private CppExpression VisitExpression(CXCursor cursor, CXCursor parent, CXClientData data)
+        private unsafe CppExpression VisitExpression(CXCursor cursor, CXCursor parent, CXClientData data)
         {
             CppExpression expr = null;
             bool visitChildren = false;
@@ -986,7 +984,7 @@ namespace CppAst
             }
         }
 
-        private CppEnum VisitEnumDecl(CXCursor cursor, CXCursor parent, CXClientData data)
+        private unsafe CppEnum VisitEnumDecl(CXCursor cursor, CXCursor parent, CXClientData data)
         {
             var cppEnum = GetOrCreateDeclarationContainer<CppEnum>(cursor, data, out var context);
             if (cursor.IsDefinition && !context.IsChildrenVisited)
@@ -994,6 +992,8 @@ namespace CppAst
                 var integralType = cursor.EnumDecl_IntegerType;
                 cppEnum.IntegerType = GetCppType(integralType.Declaration, integralType, cursor, data);
                 cppEnum.IsScoped = cursor.EnumDecl_IsScoped;
+
+                ParseAttributes(cursor)?.ForEach(x => cppEnum.Attributes.Add(x));
 
                 context.IsChildrenVisited = true;
                 cursor.VisitChildren(VisitMember, data);
@@ -1016,7 +1016,7 @@ namespace CppAst
         }
 
 
-        private CppFunction VisitFunctionDecl(CXCursor cursor, CXCursor parent, CXClientData data)
+        private unsafe CppFunction VisitFunctionDecl(CXCursor cursor, CXCursor parent, CXClientData data)
         {
             var contextContainer = GetOrCreateDeclarationContainer(cursor.SemanticParent, data);
             var container = contextContainer.DeclarationContainer;
@@ -1087,7 +1087,7 @@ namespace CppAst
             var returnType = GetCppType(cursor.ResultType.Declaration, cursor.ResultType, cursor, data);
             cppFunction.ReturnType = returnType;
 
-            cppFunction.Attributes = ParseFunctionAttributes(cursor, cppFunction.Name);
+            ParseFunctionAttributes(cursor, cppFunction.Name)?.ForEach(x => cppFunction.Attributes.Add(x));            
             cppFunction.CallingConvention = GetCallingConvention(cursor.Type);
 
             int i = 0;
@@ -1098,7 +1098,7 @@ namespace CppAst
                     case CXCursorKind.CXCursor_ParmDecl:
                         var argName = GetCursorSpelling(argCursor);
 
-                        var parameter = new CppParameter(GetCppType(argCursor.Type.Declaration, argCursor.Type, functionCursor, clientData), argName);
+                        var parameter = new CppParameter(GetCppType(argCursor.Type.Declaration, argCursor.Type, functionCursor, (CXClientData)clientData), argName);
 
                         cppFunction.Parameters.Add(parameter);
 
@@ -1194,15 +1194,40 @@ namespace CppAst
             }
         }
 
+        private void SkipTemplates(ref TokenIterator thing)
+        {
+            if (thing.CanPeek)
+            {
+                if (thing.Skip("template"))
+                {
+                    thing.Next(); // skip the first >
+                    int parentCount = 1;                    
+                    while (parentCount > 0 && thing.CanPeek)
+                    {
+                        var text = thing.PeekText();
+                        if (text == ">")
+                        {
+                            parentCount--;
+                        }
+                        thing.Next();
+                    }
+                }
+            }            
+        }
+
         private List<CppAttribute> ParseAttributes(CXCursor cursor)
         {
             var tokenizer = new Tokenizer(cursor);
             var tokenIt = new TokenIterator(tokenizer);
 
+            // if this is a temaplate then we need to skip that ? 
+            if (tokenIt.CanPeek && tokenIt.PeekText() == "template")
+                SkipTemplates(ref tokenIt);
+
             List<CppAttribute> attributes = null;
             while (tokenIt.CanPeek)
             {
-                if (ParseAttributes(tokenIt, ref attributes))
+                if (ParseAttributes(ref tokenIt, ref attributes))
                 {
                     continue;
                 }
@@ -1232,7 +1257,7 @@ namespace CppAst
             List<CppAttribute> attributes = null;
             while (tokenIt.CanPeek)
             {
-                if (ParseAttributes(tokenIt, ref attributes))
+                if (ParseAttributes(ref tokenIt, ref attributes))
                 {
                     continue;
                 }
@@ -1277,7 +1302,7 @@ namespace CppAst
 
             while (tokenIt.CanPeek)
             {
-                if (ParseAttributes(tokenIt, ref attributes))
+                if (ParseAttributes(ref tokenIt, ref attributes))
                 {
                     continue;
                 }
@@ -1288,14 +1313,14 @@ namespace CppAst
             return attributes;
         }
 
-        private bool ParseAttributes(TokenIterator tokenIt, ref List<CppAttribute> attributes)
+        private bool ParseAttributes(ref TokenIterator tokenIt, ref List<CppAttribute> attributes)
         {
             // Parse C++ attributes
             // [[<attribute>]]
             if (tokenIt.Skip("[", "["))
             {
                 CppAttribute attribute;
-                while (ParseAttribute(tokenIt, out attribute))
+                while (ParseAttribute(ref tokenIt, out attribute))
                 {
                     if (attributes == null)
                     {
@@ -1314,7 +1339,7 @@ namespace CppAst
             if (tokenIt.Skip("__attribute__", "(", "("))
             {
                 CppAttribute attribute;
-                while (ParseAttribute(tokenIt, out attribute))
+                while (ParseAttribute(ref tokenIt, out attribute))
                 {
                     if (attributes == null)
                     {
@@ -1333,7 +1358,7 @@ namespace CppAst
             if (tokenIt.Skip("__declspec", "("))
             {
                 CppAttribute attribute;
-                while (ParseAttribute(tokenIt, out attribute))
+                while (ParseAttribute(ref tokenIt, out attribute))
                 {
                     if (attributes == null)
                     {
@@ -1353,7 +1378,7 @@ namespace CppAst
         {
             var tokenizer = new Tokenizer(cursor);
             var tokenIt = new TokenIterator(tokenizer);
-            if (ParseAttribute(tokenIt, out var attribute))
+            if (ParseAttribute(ref tokenIt, out var attribute))
             {
                 if (attributes == null)
                 {
@@ -1366,7 +1391,7 @@ namespace CppAst
             return false;
         }
 
-        private bool ParseAttribute(TokenIterator tokenIt, out CppAttribute attribute)
+        private bool ParseAttribute(ref TokenIterator tokenIt, out CppAttribute attribute)
         {
             // (identifier ::)? identifier ('(' tokens ')' )? (...)?
             attribute = null;
@@ -1436,7 +1461,7 @@ namespace CppAst
 
         private CppType VisitTypeDefDecl(CXCursor cursor, CXCursor parent, CXClientData data)
         {
-            var fulltypeDefName = cursor.UnifiedSymbolResolution.CString;
+            var fulltypeDefName = cursor.Usr.CString;
             CppType type;
             if (_typedefs.TryGetValue(fulltypeDefName, out type))
             {
@@ -1631,7 +1656,7 @@ namespace CppAst
                 }
 
                 case CXTypeKind.CXType_Attributed:
-                    return GetCppType(type.ModifierType.Declaration, type.ModifierType, parent, data);
+                    return GetCppType(type.ModifiedType.Declaration, type.ModifiedType, parent, data);
 
                 default:
                 {
@@ -1641,7 +1666,7 @@ namespace CppAst
             }
         }
 
-        private CppFunctionType VisitFunctionType(CXCursor cursor, CXType type, CXCursor parent, CXClientData data)
+        private unsafe CppFunctionType VisitFunctionType(CXCursor cursor, CXType type, CXCursor parent, CXClientData data)
         {
             // Gets the return type
             var returnType = GetCppType(type.ResultType.Declaration, type.ResultType, cursor, data);
@@ -1707,7 +1732,7 @@ namespace CppAst
         /// <summary>
         /// Internal class to iterate on tokens
         /// </summary>
-        private class TokenIterator
+        private ref struct TokenIterator
         {
             private readonly Tokenizer _tokens;
             private int _index;
@@ -1715,6 +1740,7 @@ namespace CppAst
             public TokenIterator(Tokenizer tokens)
             {
                 _tokens = tokens;
+                _index = 0;
             }
 
             public bool Skip(string expectedText)
@@ -1829,35 +1855,403 @@ namespace CppAst
             }
         }
 
+        private ref struct simple_tokenizer
+        {
+            private Span<CXToken> _tokens;
+            private readonly CXTranslationUnit _tu;
+            int no;
+            public simple_tokenizer(CXTranslationUnit tu, CXSourceRange range)
+            {
+                _tu = tu;                
+                _tokens = _tu.Tokenize(range);
+                no = _tokens.Length;
+            }
+
+            public int size()
+            {
+                return no;
+            }
+
+            public CXToken this[int i]
+            {
+                get
+                {
+                    return _tokens[i];
+                }
+            }
+
+            public string get_spelling(int length)
+            {
+                string result = String.Empty;
+                for (var cur = 0; cur < no; ++cur)
+                {
+                    var cur_spelling = _tokens[cur].GetSpelling(_tu).CString; ;
+                    result += cur_spelling;
+                    if (result.Length >= length)
+                        return result;
+                }
+                return result;
+            }
+}
+
+
+        public struct Extent
+        {
+            public CXSourceRange first_part;
+            public CXSourceRange second_part;
+        };
+
+        static public bool cursor_is_function(CXCursorKind kind)
+        {
+            return kind == CXCursorKind.CXCursor_FunctionDecl || kind == CXCursorKind.CXCursor_CXXMethod
+                   || kind == CXCursorKind.CXCursor_Constructor || kind == CXCursorKind.CXCursor_Destructor
+                   || kind == CXCursorKind.CXCursor_ConversionFunction;
+        }
+
+        static public unsafe CXSourceLocation get_next_location_impl(CXTranslationUnit tu, CXFile file, CXSourceLocation loc, int inc = 1)
+        {    
+
+            uint offset, u, z, d;
+            CXFile f;
+            loc.GetSpellingLocation(out f, out u, out z, out offset);            
+            if (inc >= 0)
+                offset += (uint)inc;
+            else
+                offset -= (uint)-inc;
+
+            return tu.GetLocationForOffset(f, offset);
+        }
+
+        static public unsafe CXSourceLocation get_prev_location(CXTranslationUnit tu, CXFile file,
+                                   CXSourceLocation loc, int token_length)
+        {
+            var inc = 1;
+            while (true)
+            {
+                var loc_before = get_next_location_impl(tu, file, loc, -inc);
+
+                var tokenizer = new simple_tokenizer(tu, clang.getRange(loc_before, loc));
+                if (tokenizer.size() == 0)
+                    return clang.getNullLocation();
+
+                var token_location = tokenizer[0].GetLocation(tu);
+                if (loc_before == token_location)
+                {
+                        // actually found a new token and not just whitespace
+                        // loc_before is now the last character of the new token
+                        // need to move by token_length - 1 to get to the first character
+                        return get_next_location_impl(tu, file, loc, -1 * (inc + token_length - 1));
+                }
+                else
+                    ++inc;
+            }
+        }
+
+        static public bool token_before_is(CXTranslationUnit tu, CXFile file, CXSourceLocation loc, string token_str)
+        {
+            var length = token_str.Length;
+            var loc_before = get_prev_location(tu, file, loc, length);
+            //if (!loc_before.IsFromMainFile)
+            //    return false;
+
+            var tokenizer = new simple_tokenizer(tu, clang.getRange(loc_before, loc));
+            if (tokenizer.size() == 0) return false;
+
+            return tokenizer.get_spelling(length) == token_str;
+        }
+
+        static public CXSourceLocation get_next_location(CXTranslationUnit tu, CXFile file,
+                                   CXSourceLocation loc, int token_length)
+        {
+            // simple move over by token_length
+            return get_next_location_impl(tu, file, loc, token_length);
+        }
+
+        static public bool consume_if_token_before_is(CXTranslationUnit tu, CXFile file, ref CXSourceLocation loc, string token_str)
+        {
+            var length = token_str.Length;
+
+            var loc_before = get_prev_location(tu, file, loc, length);
+            //if (!loc_before.IsFromMainFile)
+            //    return false;
+
+            var tokenizer = new simple_tokenizer(tu, clang.getRange(loc_before, loc));
+            if (tokenizer.get_spelling(length) == token_str)
+            {
+                loc = loc_before;
+                return true;
+            }
+            else
+                return false;
+        }
+
+        static public bool token_at_is(CXTranslationUnit tu, CXFile file, CXSourceLocation loc, string token_str)
+        {
+            var length = token_str.Length;
+
+            var loc_after = get_next_location(tu, file, loc, length);
+            //if (!loc_after.IsFromMainFile)
+            //    return false;
+
+            var tokenizer = new simple_tokenizer(tu, clang.getRange(loc_after, loc));
+            return tokenizer.get_spelling(length) == token_str;
+        }
+
+        static public unsafe bool is_in_range(CXSourceLocation loc, CXSourceRange range)
+        {
+            var begin = range.Start;
+            var end = range.End;
+
+            CXFile f_loc, f_begin, f_end;
+            uint l_loc, l_begin, l_end;
+            uint u1, u2;
+            loc.GetSpellingLocation(out f_loc, out l_loc, out u1, out u2);
+            begin.GetSpellingLocation(out f_begin, out l_begin, out u1, out u2);
+            end.GetSpellingLocation(out f_end, out l_end, out u1, out u2);
+
+            return l_loc >= l_begin && l_loc<l_end && (f_loc == f_begin);
+        }
+
+        static public bool has_inline_type_definition(CXCursor var_decl)
+        {
+            var type_decl = var_decl.Type.Declaration;
+            if (type_decl.IsNull)
+                return false;
+
+            var type_loc = type_decl.Location;
+            var var_range = type_decl.Extent;
+            return is_in_range(type_loc, var_range);
+        }
+
+        static public bool cursor_is_var(CXCursorKind kind)
+        {
+            return kind == CXCursorKind.CXCursor_VarDecl || kind == CXCursorKind.CXCursor_FieldDecl;
+        }
+
+        static public bool consume_if_token_at_is(CXTranslationUnit tu, CXFile file, ref CXSourceLocation loc, string token_str)
+        {
+            var length = token_str.Length;
+
+            var loc_after = get_next_location(tu, file, loc, length);
+            var tokenizer = new simple_tokenizer(tu, clang.getRange(loc_after, loc));
+            if (tokenizer.size() == 0)
+                return false;
+
+            if (tokenizer.get_spelling(length) == token_str)
+            {
+                loc = loc_after;
+                return true;
+            }
+            else
+                return false;
+
+        }
+
+        static public unsafe Extent GetExtent(CXTranslationUnit tu, CXFile file, CXCursor cur)
+        {
+            var x = cur.Extent;
+            var begin = x.Start;
+            var end = x.End;
+            var result = new Extent();
+
+            var kind = clang.getCursorKind(cur);
+
+            if (cursor_is_function(kind) || cursor_is_function(clang.getTemplateCursorKind(cur))
+                || kind == CXCursorKind.CXCursor_VarDecl || kind == CXCursorKind.CXCursor_FieldDecl || kind == CXCursorKind.CXCursor_ParmDecl
+                || kind == CXCursorKind.CXCursor_NonTypeTemplateParameter)
+            {
+                while (token_before_is(tu, file, begin, "]]") || token_before_is(tu, file, begin, ")"))
+                {
+                    var save_begin = begin;
+                    if (consume_if_token_before_is(tu, file, ref begin, "]]"))
+                    {
+                        while (!consume_if_token_before_is(tu, file, ref begin, "[["))
+                            begin = get_prev_location(tu, file, begin, 1);
+                    }
+                    else if (consume_if_token_before_is(tu, file, ref begin, ")"))
+                    {
+                        // maybe alignas specifier
+
+                        var paren_count = 1;
+                        for (var last_begin = begin; paren_count != 0; last_begin = begin)
+                        {
+                            if (token_before_is(tu, file, begin, "("))
+                                --paren_count;
+                            else if (token_before_is(tu, file, begin, ")"))
+                                ++paren_count;
+
+                            begin = get_prev_location(tu, file, begin, 1);
+                        }
+
+                        if (!consume_if_token_before_is(tu, file, ref begin, "alignas"))
+                        {
+                            // not alignas
+                            begin = save_begin;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (cursor_is_function(kind) || cursor_is_function(clang.getTemplateCursorKind(cur)))
+            {
+                if (cur.CXXMethod_IsDefaulted || !cur.IsDefinition)
+                {
+                    // defaulted or declaration: extend until semicolon
+                }
+                else
+                {
+                    // declaration: remove body, we don't care about that
+                    var has_children = false;
+                    cur.VisitChildren((child, classCursor, clientData) =>
+                    {
+                        if (!has_children)
+                        {
+                            if (clang.getCursorKind(child) == CXCursorKind.CXCursor_CompoundStmt
+                                 || clang.getCursorKind(child) == CXCursorKind.CXCursor_CXXTryStmt
+                                 || clang.getCursorKind(child) == CXCursorKind.CXCursor_InitListExpr)
+                            {
+                                var child_extent = clang.getCursorExtent(child);
+                                end = clang.getRangeStart(child_extent);
+                                has_children = true;
+                            }
+                        }
+
+                        return CXChildVisitResult.CXChildVisit_Continue;
+                    }, clientData: default);
+                }
+            }
+            else if (cursor_is_var(kind) || cursor_is_var(clang.getTemplateCursorKind(cur)))
+            {
+                if (has_inline_type_definition(cur))
+                {
+                    // the type is declared inline,
+                    // remove the type definition from the range
+                    var type_cursor = clang.getTypeDeclaration(clang.getCursorType(cur));
+                    var type_extent = clang.getCursorExtent(type_cursor);
+
+                    var type_begin = clang.getRangeStart(type_extent);
+                    var type_end = clang.getRangeEnd(type_extent);
+
+                    result.first_part = clang.getRange(begin, type_begin);
+                    result.second_part = clang.getRange(type_end, end);
+
+                    return result;
+                }
+            }
+            else if (kind == CXCursorKind.CXCursor_TemplateTypeParameter && token_at_is(tu, file, end, "("))
+            {
+                // if you have decltype as default argument for a type template parameter
+                // libclang doesn't include the parameters
+                var next = get_next_location(tu, file, end, 1);
+                var prev = end;
+                for (var paren_count = 1; paren_count != 0; next = get_next_location(tu, file, next, 1))
+                {
+                    if (token_at_is(tu, file, next, "("))
+                        ++paren_count;
+                    else if (token_at_is(tu, file, next, ")"))
+                        --paren_count;
+                    prev = next;
+                }
+                end = next;
+            }
+            else if (kind == CXCursorKind.CXCursor_TemplateTemplateParameter && token_at_is(tu, file, end, "<"))
+            {
+                // if you have a template template parameter in a template template parameter,
+                // the tokens are all messed up, only contain the `template`
+
+                // first: skip to closing angle bracket
+                // luckily no need to handle expressions here
+                var next = get_next_location(tu, file, end, 1);
+                for (var angle_count = 1; angle_count != 0; next = get_next_location(tu, file, next, 1))
+                {
+                    if (token_at_is(tu, file, next, ">"))
+                        --angle_count;
+                    else if (token_at_is(tu, file, next, ">>"))
+                        angle_count -= 2;
+                    else if (token_at_is(tu, file, next, "<"))
+                        ++angle_count;
+                }
+
+                // second: skip until end of parameter
+                // no need to handle default, so look for '>' or ','
+                while (!token_at_is(tu, file, next, ">") && !token_at_is(tu, file, next, ","))
+                    next = get_next_location(tu, file, next, 1);
+                // now we found the proper end of the token
+                end = get_prev_location(tu, file, next, 1);
+            }
+            else if ((kind == CXCursorKind.CXCursor_TemplateTypeParameter || kind == CXCursorKind.CXCursor_NonTypeTemplateParameter
+                || kind == CXCursorKind.CXCursor_TemplateTemplateParameter))
+            {
+                // variadic tokens in unnamed parameter not included
+                consume_if_token_at_is(tu, file, ref end, "...");
+            }
+            else if (kind == CXCursorKind.CXCursor_EnumDecl && !token_at_is(tu, file, end, ";"))
+            {
+                //while (!token_at_is(tu, file, end, ";"))
+                //    end = get_next_location(tu, file, end, 1);
+            }
+            else if (kind == CXCursorKind.CXCursor_EnumConstantDecl && !token_at_is(tu, file, end, ","))
+            {
+                // need to support attributes
+                // just give up and extend the range to the range of the entire enum...
+                var parent = clang.getCursorLexicalParent(cur);
+                end = clang.getRangeEnd(clang.getCursorExtent(parent));
+            }
+            else if (kind == CXCursorKind.CXCursor_UnexposedDecl)
+            {
+                //// include semicolon, if necessary
+                //if (token_at_is(tu, file, end, ";"))
+                //    end = get_next_location(tu, file, end, 1);
+            }
+
+            result.first_part = clang.getRange(begin, end);
+            result.second_part = clang.getNullRange();
+            return result;
+        }
+
         /// <summary>
         /// Internal class to tokenize
         /// </summary>
         [DebuggerTypeProxy(typeof(TokenizerDebuggerType))]
-        private class Tokenizer
+        private ref struct Tokenizer
         {
-            private readonly CXToken[] _tokens;
+            private List<CXToken> _tokens;
             private CppToken[] _cppTokens;
             private readonly CXTranslationUnit _tu;
 
             public Tokenizer(CXCursor cursor)
             {
-                var range = cursor.Extent;
-                _tokens = null;
+                
+                var range = GetExtent(cursor.TranslationUnit,
+                                 cursor.IncludedFile,
+                                 cursor);
                 var tu = cursor.TranslationUnit;
-                tu.Tokenize(range, out _tokens);
+                var tokenizer = new simple_tokenizer(tu, range.first_part);
+                _tokens = new List<CXToken>(tokenizer.size());
+                for (var i = 0; i != tokenizer.size(); ++i)
+                    _tokens.Add(tokenizer[i]);
+                if (!range.second_part.IsNull)
+                {
+                    var second_tokenizer = new simple_tokenizer(tu, range.first_part);
+                    _tokens.Capacity = (_tokens.Count + second_tokenizer.size());
+                    for (var i = 0; i != second_tokenizer.size(); ++i)
+                        _tokens.Add(second_tokenizer[i]);
+                }
                 _tu = tu;
+                _cppTokens = new CppToken[_tokens.Count];
+
             }
 
-            public int Count => _tokens?.Length ?? 0;
+            public int Count => _tokens.Count;
 
             public CppToken this[int i]
             {
                 get
                 {
-                    // Only create a tokenizer if necessary
                     if (_cppTokens == null)
                     {
-                        _cppTokens = new CppToken[_tokens.Length];
+                        _cppTokens = new CppToken[_tokens.Count];
                     }
 
                     ref var cppToken = ref _cppTokens[i];
@@ -1907,7 +2301,7 @@ namespace CppAst
             }
         }
 
-        private class TokenizerDebuggerType
+        private ref struct TokenizerDebuggerType
         {
             private readonly Tokenizer _tokenizer;
 

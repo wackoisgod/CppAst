@@ -21,6 +21,7 @@ namespace CppAst
         {
             Name = name;
             Items = new CppContainerList<CppEnumItem>(this);
+            Attributes = new CppContainerList<CppAttribute>(this);
         }
 
         /// <inheritdoc />
@@ -33,6 +34,11 @@ namespace CppAst
         /// Gets or sets a boolean indicating if this enum is scoped.
         /// </summary>
         public bool IsScoped { get; set; }
+
+        /// <summary>
+        /// Gets the list of attached attributes. Might be null.
+        /// </summary>
+        public CppContainerList<CppAttribute> Attributes { get; }
 
 
         /// <summary>

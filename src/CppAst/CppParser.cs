@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using ClangSharp;
+using ClangSharp.Interop;
 
 namespace CppAst
 {
@@ -70,7 +71,7 @@ namespace CppAst
         /// <param name="cppFiles">A list of path to C/C++ header files on the disk to parse</param>
         /// <param name="options">Options used for parsing this file (e.g include folders...)</param>
         /// <returns>The result of the compilation</returns>
-        private static CppCompilation ParseInternal(List<CppFileOrString> cppFiles, CppParserOptions options = null)
+        private unsafe static CppCompilation ParseInternal(List<CppFileOrString> cppFiles, CppParserOptions options = null)
         {
             if (cppFiles == null) throw new ArgumentNullException(nameof(cppFiles));
 
@@ -106,9 +107,12 @@ namespace CppAst
             }
 
             var translationFlags = CXTranslationUnit_Flags.CXTranslationUnit_None;
-            translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_SkipFunctionBodies;                   // Don't traverse function bodies
-            translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_IncludeAttributedTypes;               // Include attributed types in CXType
-            translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_VisitImplicitAttributes;              // Implicit attributes should be visited
+            translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_DetailedPreprocessingRecord;
+            translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_Incomplete;
+            translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_KeepGoing;
+            //translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_SkipFunctionBodies;                   // Don't traverse function bodies
+            //translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_IncludeAttributedTypes;               // Include attributed types in CXType
+            //translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_VisitImplicitAttributes;              // Implicit attributes should be visited
 
             if (options.ParseMacros)
             {
@@ -158,23 +162,18 @@ namespace CppAst
                 {
                     CXTranslationUnit translationUnit;
                     CXErrorCode translationUnitError;
+                    //new CXUnsavedFile()
+                    //{
+                    //    Contents = rootFileContent,
+                    //    Filename = rootFileName,
+                    //    Length = (uint)Encoding.UTF8.GetByteCount(rootFileContent)
 
-                    translationUnitError = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray, new CXUnsavedFile[] { new CXUnsavedFile()
-                    {
-                        Contents = rootFileContent,
-                        Filename = rootFileName,
-                        Length = (uint)Encoding.UTF8.GetByteCount(rootFileContent)
-
-                    }}, translationFlags, out translationUnit);
+                    //}
+                    translationUnit = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray, new CXUnsavedFile[] { CXUnsavedFile.Create(rootFileName, rootFileContent) }, translationFlags);
 
                     bool skipProcessing = false;
 
-                    if (translationUnitError != CXErrorCode.CXError_Success)
-                    {
-                        compilation.Diagnostics.Error($"Parsing failed due to '{translationUnitError}'", new CppSourceLocation(rootFileName, 0, 1, 1));
-                        skipProcessing = true;
-                    }
-                    else if (translationUnit.NumDiagnostics != 0)
+                    if (translationUnit.NumDiagnostics != 0)
                     {
                         for (uint i = 0; i < translationUnit.NumDiagnostics; ++i)
                         {

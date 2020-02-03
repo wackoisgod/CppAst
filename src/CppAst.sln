@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.329
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29709.97
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CppAst", "CppAst\CppAst.csproj", "{F3FAC147-1F2A-4234-998E-5A0C4971CAF2}"
 EndProject
@@ -14,6 +14,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{EDFB7701
 		..\license.txt = ..\license.txt
 		..\readme.md = ..\readme.md
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClangSharp", "..\ext\ClangSharp\sources\ClangSharp\ClangSharp.csproj", "{D0CD4F69-97CA-4DE2-9062-51C5E750391E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,6 +31,10 @@ Global
 		{03154921-B42B-49A4-95D3-D28738B82AC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{03154921-B42B-49A4-95D3-D28738B82AC6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{03154921-B42B-49A4-95D3-D28738B82AC6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D0CD4F69-97CA-4DE2-9062-51C5E750391E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D0CD4F69-97CA-4DE2-9062-51C5E750391E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D0CD4F69-97CA-4DE2-9062-51C5E750391E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D0CD4F69-97CA-4DE2-9062-51C5E750391E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

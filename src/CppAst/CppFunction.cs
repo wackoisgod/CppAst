@@ -21,6 +21,7 @@ namespace CppAst
             Name = name;
             Parameters = new CppContainerList<CppParameter>(this);
             TemplateParameters = new List<CppTemplateParameterType>();
+            Attributes = new CppContainerList<CppAttribute>(this);
         }
 
         /// <inheritdoc />
@@ -34,7 +35,7 @@ namespace CppAst
         /// <summary>
         /// Gets the attached attributes. Might be null.
         /// </summary>
-        public List<CppAttribute> Attributes { get; set; }
+        public CppContainerList<CppAttribute> Attributes { get; }
 
         /// <summary>
         /// Gets or sets the storage qualifier.
