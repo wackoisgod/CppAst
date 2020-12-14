@@ -3,7 +3,6 @@
 // See license.txt file in the project root for full license information.
 
 using System;
-using CppAst;
 
 namespace CppAst
 {
@@ -21,9 +20,8 @@ namespace CppAst
     {
         public CppDiagnosticMessage(CppLogMessageType type, string text, CppSourceLocation location)
         {
-            if (text == null) throw new ArgumentNullException(nameof(text));
             Type = type;
-            Text = text;
+            Text = text ?? throw new ArgumentNullException(nameof(text));
             Location = location;
         }
 
@@ -33,6 +31,7 @@ namespace CppAst
 
         public readonly CppSourceLocation Location;
 
+        /// <inheritdoc />
         public override string ToString()
         {
             return $"{Location}: {Type.ToString().ToLowerInvariant()}: {Text}";

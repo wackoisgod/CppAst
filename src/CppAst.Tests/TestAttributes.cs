@@ -3,7 +3,6 @@
 // See license.txt file in the project root for full license information.
 
 using System;
-using System.Linq;
 using NUnit.Framework;
 
 namespace CppAst.Tests
@@ -61,7 +60,7 @@ void *fun2(int align) __attribute__((alloc_align(1)));
                     Assert.AreEqual("alloc_align(1)", compilation.Functions[2].Attributes[0].ToString());
 
                 },
-                new CppParserOptions().ConfigureForWindowsMsvc() // Force using X86 to get __stdcall calling convention
+                new CppParserOptions() { ParseAttributes = true }.ConfigureForWindowsMsvc() // Force using X86 to get __stdcall calling convention
             );
         }
 
@@ -94,7 +93,7 @@ struct __declspec(uuid(""1841e5c8-16b0-489b-bcc8-44cfb0d5deae"")) __declspec(nov
                         Assert.Null(attr.Arguments);
                     }
                 },
-                new CppParserOptions().ConfigureForWindowsMsvc());
+                new CppParserOptions() { ParseAttributes = true }.ConfigureForWindowsMsvc());
         }
 
         [Test]
@@ -113,7 +112,7 @@ alignas(128) char cacheline[128];", compilation =>
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -133,7 +132,7 @@ struct alignas(8) S {};", compilation =>
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -158,7 +157,7 @@ struct [[deprecated]] alignas(8) S {};", compilation =>
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -193,7 +192,7 @@ struct [[deprecated(""old"")]] TestMessage{
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } } 
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -226,7 +225,7 @@ struct Test{
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -246,7 +245,7 @@ struct Test{
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -266,7 +265,7 @@ namespace [[deprecated]] cppast {};", compilation =>
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -286,7 +285,7 @@ enum [[deprecated]] E { };", compilation =>
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -301,14 +300,14 @@ template<> struct [[deprecated]] X<int> {};", compilation =>
 
                 Assert.AreEqual(2, compilation.Classes.Count);
                 Assert.AreEqual(0, compilation.Classes[0].Attributes.Count);
-                Assert.AreEqual(1, compilation.Classes[1].Attributes.Count);                
+                Assert.AreEqual(1, compilation.Classes[1].Attributes.Count);
                 {
                     var attr = compilation.Classes[1].Attributes[0];
                     Assert.AreEqual("deprecated", attr.Name);
                 }
             },
             // we are using a C++14 attribute because it can be used everywhere
-            new CppParserOptions() { AdditionalArguments = { "-std=c++14" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = true }
           );
         }
 
@@ -345,7 +344,7 @@ struct [[cppast(""old"")]] TestMessage{
             // C++17 says if the compile encounters a attribute it doesn't understand
             // it will ignore that attribute and not throw an error, we still want to
             // parse this.
-            new CppParserOptions() { AdditionalArguments = { "-std=c++17" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++17" }, ParseAttributes = true }
           );
         }
 
@@ -369,7 +368,8 @@ int function1(int a, int b);
                 Assert.AreEqual(expectedText, resultText);
 
                 Assert.AreEqual(0, compilation.Functions[0].Attributes.Count);
-            });
+            },
+            new CppParserOptions() { ParseAttributes = true });
         }
 
         [Test]
@@ -392,7 +392,8 @@ int function1(int a, int b);
                 Assert.AreEqual(expectedText, resultText);
 
                 Assert.AreEqual(1, compilation.Functions[0].Attributes.Count);
-            });
+            },
+            new CppParserOptions() { ParseAttributes = true });
         }
 
         [Test]
@@ -418,7 +419,8 @@ bug(infinite loop)";
                 Assert.AreEqual(expectedText, resultText);
 
                 Assert.AreEqual(0, compilation.Functions[0].Attributes.Count);
-            });
+            },
+            new CppParserOptions() { ParseAttributes = true });
         }
 
         [Test]
@@ -430,7 +432,8 @@ int function1(int a, int b);", compilation =>
             {
                 Assert.False(compilation.HasErrors);
                 Assert.AreEqual(0, compilation.Functions[0].Attributes.Count);
-            });
+            },
+            new CppParserOptions() { ParseAttributes = true });
         }
 
         [Test]
@@ -442,7 +445,8 @@ int function1(int a, int b);", compilation =>
             {
                 Assert.False(compilation.HasErrors);
                 Assert.AreEqual(0, compilation.Functions[0].Attributes.Count);
-            });
+            },
+            new CppParserOptions() { ParseAttributes = true });
         }
 
         [Test]
@@ -459,7 +463,7 @@ struct Test{
             {
                 Assert.False(compilation.HasErrors);
 
-                Assert.AreEqual(2, compilation.Classes.Count);
+                Assert.AreEqual(3, compilation.Classes.Count);
                 Assert.AreEqual(1, compilation.Classes[1].Fields.Count);
                 Assert.AreEqual(1, compilation.Classes[1].Fields[0].Attributes.Count);
                 {
@@ -470,7 +474,7 @@ struct Test{
             // C++17 says if the compile encounters a attribute it doesn't understand
             // it will ignore that attribute and not throw an error, we still want to
             // parse this.
-            new CppParserOptions() { AdditionalArguments = { "-std=c++17" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++17" }, ParseAttributes = true }
           );
         }
 
@@ -495,8 +499,61 @@ struct Test{
             // C++17 says if the compile encounters a attribute it doesn't understand
             // it will ignore that attribute and not throw an error, we still want to
             // parse this.
-            new CppParserOptions() { AdditionalArguments = { "-std=c++17" } }
+            new CppParserOptions() { AdditionalArguments = { "-std=c++17" }, ParseAttributes = true }
           );
         }
+
+        [Test]
+        public void TestCppNoParseOptionsAttributes()
+        {
+            ParseAssert(@"
+[[noreturn]] void x() {};", compilation =>
+            {
+                Assert.False(compilation.HasErrors);
+
+                Assert.AreEqual(1, compilation.Functions.Count);
+                Assert.AreEqual(0, compilation.Functions[0].Attributes.Count);
+            },
+            // we are using a C++14 attribute because it can be used everywhere
+            new CppParserOptions() { AdditionalArguments = { "-std=c++14" }, ParseAttributes = false }
+          );
+        }
+        
+        [Test]
+        public void TestClassPublicExportAttribute()
+        {
+            var text = @"
+#ifdef WIN32
+#define EXPORT_API __declspec(dllexport)
+#else
+#define EXPORT_API __attribute__((visibility(""default"")))
+#endif
+class EXPORT_API TestClass
+{
+};
+";
+            ParseAssert(text,
+                compilation =>
+                {
+                    Assert.False(compilation.HasErrors);
+
+                    var cppClass = compilation.Classes[0];
+                    Assert.AreEqual(1, cppClass.Attributes.Count);
+                    Assert.True(cppClass.IsPublicExport());
+                    
+                },
+                new CppParserOptions() { ParseAttributes = true }
+            );
+            ParseAssert(text,
+                compilation =>
+                {
+                    Assert.False(compilation.HasErrors);
+
+                    var cppClass = compilation.Classes[0];
+                    Assert.AreEqual(1, cppClass.Attributes.Count);
+                    Assert.True(cppClass.IsPublicExport());
+                }, new CppParserOptions() { ParseAttributes = true }.ConfigureForWindowsMsvc()
+            );
+        }    
     }
 }

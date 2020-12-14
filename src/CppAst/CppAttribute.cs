@@ -26,7 +26,7 @@ namespace CppAst
         /// Gets the attribute name.
         /// </summary>
         public string Name { get; set; }
-        
+
         /// <summary>
         /// Gets the attribute arguments
         /// </summary>
@@ -37,6 +37,7 @@ namespace CppAst
         /// </summary>
         public bool IsVariadic { get; set; }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             var builder = new StringBuilder();

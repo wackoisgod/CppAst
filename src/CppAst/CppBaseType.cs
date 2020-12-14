@@ -35,7 +35,8 @@ namespace CppAst
         /// Gets the C++ type associated.
         /// </summary>
         public CppType Type { get; }
-        
+
+        /// <inheritdoc />
         public override string ToString()
         {
             var builder = new StringBuilder();

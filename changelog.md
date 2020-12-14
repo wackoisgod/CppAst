@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha-001 (2 May 2020)
+- Use CLangSharp - libclang 10.0
+
+## 0.7.3 (8 Mar 2020)
+- Optimize attribute parsing.
+
+## 0.7.2 (27 Feb 2020)
+- Make attribute parsing optional by default.
+
 ## 0.7.1 (15 Feb 2020)
 - Fix infinite loop issue caused by attribute parsing.
 

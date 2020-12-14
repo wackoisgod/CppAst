@@ -2,8 +2,6 @@
 // Licensed under the BSD-Clause 2 license.
 // See license.txt file in the project root for full license information.
 
-using System;
-
 namespace CppAst
 {
     /// <summary>
@@ -32,25 +30,29 @@ namespace CppAst
             return base.Equals(other) && Qualifier == other.Qualifier;
         }
 
+        /// <inheritdoc />
         public override bool Equals(object obj)
         {
             return ReferenceEquals(this, obj) || obj is CppQualifiedType other && Equals(other);
         }
 
+        /// <inheritdoc />
         public override int GetHashCode()
         {
             unchecked
             {
-                return (base.GetHashCode() * 397) ^ (int) Qualifier;
+                return (base.GetHashCode() * 397) ^ (int)Qualifier;
             }
         }
 
+        /// <inheritdoc />
         public override CppType GetCanonicalType()
         {
             var elementTypeCanonical = ElementType.GetCanonicalType();
             return ReferenceEquals(elementTypeCanonical, ElementType) ? this : new CppQualifiedType(Qualifier, elementTypeCanonical);
         }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             return $"{Qualifier.ToString().ToLowerInvariant()} {ElementType.GetDisplayName()}";

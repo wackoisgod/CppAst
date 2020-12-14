@@ -1,4 +1,4 @@
-# CppAst [![Build status](https://ci.appveyor.com/api/projects/status/75a6tolv5evpv5j4?svg=true)](https://ci.appveyor.com/project/xoofx/cppast)   [![NuGet](https://img.shields.io/nuget/v/CppAst.svg)](https://www.nuget.org/packages/CppAst/)
+# CppAst.NET [![Build Status](https://github.com/xoofx/CppAst/workflows/ci/badge.svg?branch=master)](https://github.com/xoofx/CppAst/actions)   [![NuGet](https://img.shields.io/nuget/v/CppAst.svg)](https://www.nuget.org/packages/CppAst/)
 
 <img align="right" width="160px" height="160px" src="img/cppast.png">
 
@@ -10,8 +10,8 @@ CppAst provides a C/C++ parser for header files with access to the full AST, com
 
 ## Features
 
-- Compatible with `.NET Framework 4.6+` and `.NET Standard 2.0`
-- Using `Clang/libclang 8.0.0`
+- Compatible with `.NET Standard 2.0+`
+- Using `Clang/libclang 10.0.0`
 - Allow to parse *in-memory* C/C++ text and C/C++ files from the disk
 - Simple AST model
 - Full type system
@@ -86,7 +86,9 @@ This software is released under the [BSD-Clause 2 license](https://opensource.or
 
 * [ClangSharp](https://github.com/microsoft/ClangSharp): .NET managed wrapper around Clang/libclang
 
-  CppAst is using internally the code of this PInvoke layer to access Clang/libclang
+## Related
+
+The C++ project [cppast](https://github.com/foonathan/cppast) serves similar purpose although CppAst.NET does not share API or any implementation details.
 
 ## Author
 

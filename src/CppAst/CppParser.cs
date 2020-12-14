@@ -6,8 +6,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
-using ClangSharp;
+using ClangSharp.Interop;
 
 namespace CppAst
 {
@@ -28,10 +29,10 @@ namespace CppAst
         public static CppCompilation Parse(string cppText, CppParserOptions options = null, string cppFilename = "content")
         {
             if (cppText == null) throw new ArgumentNullException(nameof(cppText));
-            var cppFiles = new List<CppFileOrString> {new CppFileOrString() {Filename = cppFilename, Content = cppText,}};
+            var cppFiles = new List<CppFileOrString> { new CppFileOrString() { Filename = cppFilename, Content = cppText, } };
             return ParseInternal(cppFiles, options);
         }
-        
+
         /// <summary>
         /// Parse the specified single file.
         /// </summary>
@@ -41,7 +42,7 @@ namespace CppAst
         public static CppCompilation ParseFile(string cppFilename, CppParserOptions options = null)
         {
             if (cppFilename == null) throw new ArgumentNullException(nameof(cppFilename));
-            var files = new List<string>() {cppFilename};
+            var files = new List<string>() { cppFilename };
             return ParseFiles(files, options);
         }
 
@@ -70,7 +71,7 @@ namespace CppAst
         /// <param name="cppFiles">A list of path to C/C++ header files on the disk to parse</param>
         /// <param name="options">Options used for parsing this file (e.g include folders...)</param>
         /// <returns>The result of the compilation</returns>
-        private static CppCompilation ParseInternal(List<CppFileOrString> cppFiles, CppParserOptions options = null)
+        private static unsafe CppCompilation ParseInternal(List<CppFileOrString> cppFiles, CppParserOptions options = null)
         {
             if (cppFiles == null) throw new ArgumentNullException(nameof(cppFiles));
 
@@ -89,6 +90,9 @@ namespace CppAst
             arguments.AddRange(normalizedIncludePaths.Select(x => $"-I{x}"));
             arguments.AddRange(normalizedSystemIncludePaths.Select(x => $"-isystem{x}"));
             arguments.AddRange(options.Defines.Select(x => $"-D{x}"));
+
+            arguments.Add("-dM");
+            arguments.Add("-E");
 
             if (options.ParseAsCpp && !arguments.Contains("-xc++"))
             {
@@ -114,17 +118,23 @@ namespace CppAst
             {
                 translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_DetailedPreprocessingRecord;
             }
+            translationFlags |= CXTranslationUnit_Flags.CXTranslationUnit_DetailedPreprocessingRecord;
 
             var argumentsArray = arguments.ToArray();
 
             using (var createIndex = CXIndex.Create())
             {
-                var builder = new CppModelBuilder { AutoSquashTypedef = options.AutoSquashTypedef, ParseSystemIncludes = options.ParseSystemIncludes };
+                var builder = new CppModelBuilder
+                {
+                    AutoSquashTypedef = options.AutoSquashTypedef,
+                    ParseSystemIncludes = options.ParseSystemIncludes,
+                    ParseAttributeEnabled = options.ParseAttributes,
+                };
                 var compilation = builder.RootCompilation;
 
                 string rootFileName = CppAstRootFileName;
                 string rootFileContent = null;
-                
+
                 // Build the root input source file
                 var tempBuilder = new StringBuilder();
                 if (options.PreHeaderText != null)
@@ -153,36 +163,35 @@ namespace CppAst
                 // TODO: Add debug
                 rootFileContent = tempBuilder.ToString();
 
+                var rootFileContentUTF8 = Encoding.UTF8.GetBytes(rootFileContent);
                 compilation.InputText = rootFileContent;
 
+                fixed (void* rootFileContentUTF8Ptr = rootFileContentUTF8)
                 {
                     CXTranslationUnit translationUnit;
-                    CXErrorCode translationUnitError;
 
-                    translationUnitError = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray, new CXUnsavedFile[] { new CXUnsavedFile()
+                    var rootFileNameUTF8 = Marshal.StringToHGlobalAnsi(rootFileName);
+
+                    translationUnit = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray,new CXUnsavedFile[]
                     {
-                        Contents = rootFileContent,
-                        Filename = rootFileName,
-                        Length = (uint)Encoding.UTF8.GetByteCount(rootFileContent)
+                        new CXUnsavedFile()
+                        {
+                            Contents = (sbyte*) rootFileContentUTF8Ptr,
+                            Filename = (sbyte*) rootFileNameUTF8,
+                            Length = new UIntPtr((uint)rootFileContentUTF8.Length)
 
-                    }}, translationFlags, out translationUnit);
+                        }
+                    }, translationFlags);
 
                     bool skipProcessing = false;
 
-                    if (translationUnitError != CXErrorCode.CXError_Success)
-                    {
-                        compilation.Diagnostics.Error($"Parsing failed due to '{translationUnitError}'", new CppSourceLocation(rootFileName, 0, 1, 1));
-                        skipProcessing = true;
-                    }
-                    else if (translationUnit.NumDiagnostics != 0)
+                    if (translationUnit.NumDiagnostics != 0)
                     {
                         for (uint i = 0; i < translationUnit.NumDiagnostics; ++i)
                         {
                             using (var diagnostic = translationUnit.GetDiagnostic(i))
                             {
-
-                                CppSourceLocation location;
-                                var message = GetMessageAndLocation(rootFileContent, diagnostic, out location);
+                                var message = GetMessageAndLocation(rootFileContent, diagnostic, out var location);
 
                                 switch (diagnostic.Severity)
                                 {

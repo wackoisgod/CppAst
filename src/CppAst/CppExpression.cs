@@ -21,7 +21,7 @@ namespace CppAst
         /// <summary>
         /// Gets the kind of this expression.
         /// </summary>
-        public CppExpressionKind  Kind { get; }
+        public CppExpressionKind Kind { get; }
 
         /// <summary>
         /// Gets the arguments of this expression. Might be null.
@@ -70,7 +70,7 @@ namespace CppAst
         public List<CppToken> Tokens { get; }
 
         /// <summary>
-        /// Gets or sets a textual representation from the tokens. 
+        /// Gets or sets a textual representation from the tokens.
         /// </summary>
         public string Text { get; set; }
 
@@ -82,6 +82,7 @@ namespace CppAst
             Text = CppToken.TokensToString(Tokens);
         }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             return Text;
@@ -121,6 +122,7 @@ namespace CppAst
         /// </summary>
         public string Operator { get; set; }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             var builder = new StringBuilder();
@@ -155,6 +157,7 @@ namespace CppAst
         /// </summary>
         public string Operator { get; set; }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             var builder = new StringBuilder();
@@ -176,6 +179,7 @@ namespace CppAst
         {
         }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             var builder = new StringBuilder();
@@ -201,6 +205,7 @@ namespace CppAst
         /// </summary>
         public string Value { get; set; }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             return Value;

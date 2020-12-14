@@ -14,7 +14,7 @@ namespace CppAst
     public sealed class CppClass : CppTypeDeclaration, ICppMemberWithVisibility, ICppDeclarationContainer, ICppTemplateOwner
     {
         /// <summary>
-        /// Creates a new instance. 
+        /// Creates a new instance.
         /// </summary>
         /// <param name="name">Name of this type.</param>
         public CppClass(string name) : base(CppTypeKind.StructOrClass)
@@ -27,10 +27,10 @@ namespace CppAst
             Enums = new CppContainerList<CppEnum>(this);
             Classes = new CppContainerList<CppClass>(this);
             Typedefs = new CppContainerList<CppTypedef>(this);
-            TemplateParameters = new List<CppTemplateParameterType>();
+            TemplateParameters = new List<CppType>();
             Attributes = new CppContainerList<CppAttribute>(this);
         }
-        
+
         /// <summary>
         /// Kind of the instance (`class` `struct` or `union`)
         /// </summary>
@@ -54,7 +54,7 @@ namespace CppAst
         /// Gets or sets a boolean indicating if this declaration is anonymous.
         /// </summary>
         public bool IsAnonymous { get; set; }
-        
+
         /// <summary>
         /// Get the base types of this type.
         /// </summary>
@@ -81,20 +81,28 @@ namespace CppAst
         public CppContainerList<CppTypedef> Typedefs { get; }
 
         /// <inheritdoc />
-        public List<CppTemplateParameterType> TemplateParameters { get; }
+        public List<CppType> TemplateParameters { get; }
+
+        /// <summary>
+        /// Gets the specialized class template of this instance.
+        /// </summary>
+        public CppClass SpecializedTemplate { get; set; }
 
         private bool Equals(CppClass other)
         {
             return base.Equals(other) && Equals(Parent, other.Parent) && Name.Equals(other.Name);
         }
 
+        /// <inheritdoc />
         public override int SizeOf { get; set; }
 
+        /// <inheritdoc />
         public override bool Equals(object obj)
         {
             return ReferenceEquals(this, obj) || obj is CppClass other && Equals(other);
         }
 
+        /// <inheritdoc />
         public override int GetHashCode()
         {
             unchecked
@@ -102,15 +110,21 @@ namespace CppAst
                 int hashCode = base.GetHashCode();
                 hashCode = (hashCode * 397) ^ (Parent != null ? Parent.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ Name.GetHashCode();
+                foreach (var templateParameter in TemplateParameters)
+                {
+                    hashCode = (hashCode * 397) ^ templateParameter.GetHashCode();
+                }
                 return hashCode;
             }
         }
 
+        /// <inheritdoc />
         public override CppType GetCanonicalType()
         {
             return this;
         }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             var builder = new StringBuilder();

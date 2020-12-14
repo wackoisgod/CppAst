@@ -20,7 +20,7 @@ namespace CppAst
         {
             Name = name;
             Parameters = new CppContainerList<CppParameter>(this);
-            TemplateParameters = new List<CppTemplateParameterType>();
+            TemplateParameters = new List<CppType>();
             Attributes = new CppContainerList<CppAttribute>(this);
         }
 
@@ -41,7 +41,7 @@ namespace CppAst
         /// Gets or sets the storage qualifier.
         /// </summary>
         public CppStorageQualifier StorageQualifier { get; set; }
-        
+
         /// <summary>
         /// Gets or sets the linkage kind
         /// </summary>
@@ -71,8 +71,9 @@ namespace CppAst
         public CppFunctionFlags Flags { get; set; }
 
         /// <inheritdoc />
-        public List<CppTemplateParameterType> TemplateParameters { get; }
+        public List<CppType> TemplateParameters { get; }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             var builder = new StringBuilder();
@@ -130,9 +131,7 @@ namespace CppAst
             return builder.ToString();
         }
 
-        public IEnumerable<ICppDeclaration> Children()
-        {
-            return Parameters;
-        }
+        /// <inheritdoc />
+        public IEnumerable<ICppDeclaration> Children() => Parameters;
     }
 }

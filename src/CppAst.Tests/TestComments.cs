@@ -59,9 +59,9 @@ enum Enum0
                         ("This is a comment of Enum0_item0", typeof(CppEnumItem)),
                         ("This is a comment of Enum0_item1", typeof(CppEnumItem)),
                     };
-                    
+
                     Assert.AreEqual(expectedResults, results);
-               }
+                }
             );
         }
 
@@ -135,7 +135,8 @@ int function1(int a, int b);
                 expectedText = expectedText.Replace("\r\n", "\n");
                 resultText = resultText?.Replace("\r\n", "\n");
                 Assert.AreEqual(expectedText, resultText);
-            });
+            },
+            new CppParserOptions() { ParseAttributes = true });
         }
     }
 }

@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <RuntimeIdentifiers>win7-x86;win7-x64;osx;linux-x64</RuntimeIdentifiers>
-    <VersionPrefix>0.7.1</VersionPrefix>
-    <!--<VersionSuffix>alpha</VersionSuffix>
-    <BuildNumber>001</BuildNumber>-->
+    <VersionPrefix>0.8.0</VersionPrefix>
+    <VersionSuffix>alpha</VersionSuffix>
+    <BuildNumber>001</BuildNumber>
     <PackageId>CppAst</PackageId>
     <Description>CppAst is a .NET library providing a C/C++ parser for header files with access to the full AST, comments and macros</Description>
     <Copyright>Alexandre Mutel</Copyright>
@@ -29,22 +29,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="libclang.runtime" Version="8.0.0.2" />
+    <PackageReference Include="ClangSharp" Version="10.0.0-beta" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../../ext/ClangSharp/ClangSharp/Generated/**/*.cs">
-      <Link>ClangSharp\Generated\%(RecursiveDir)\%(Filename)%(Extension)</Link>
-    </Compile>
-    <Compile Include="../../ext/ClangSharp/ClangSharp/Extensions/**/*.cs">
-      <Link>ClangSharp\Extensions\%(RecursiveDir)\%(Filename)%(Extension)</Link>
-    </Compile>
-    <Compile Include="../../ext/ClangSharp/ClangSharp/*.cs">
-      <Link>ClangSharp\%(Filename)%(Extension)</Link>
-    </Compile>
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-beta2-19270-01" PrivateAssets="All"/>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.*" PrivateAssets="All" />
   </ItemGroup>
 </Project>
