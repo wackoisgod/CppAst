@@ -8,6 +8,9 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+
+using Biohazrd;
+
 using ClangSharp.Interop;
 
 namespace CppAst
@@ -74,6 +77,9 @@ namespace CppAst
         private static unsafe CppCompilation ParseInternal(List<CppFileOrString> cppFiles, CppParserOptions options = null)
         {
             if (cppFiles == null) throw new ArgumentNullException(nameof(cppFiles));
+
+
+            __HACK__Stl1300Workaround stl1300Workaround = __HACK__Stl1300Workaround.Instance;
 
             options = options ?? new CppParserOptions();
 
@@ -168,20 +174,23 @@ namespace CppAst
 
                 fixed (void* rootFileContentUTF8Ptr = rootFileContentUTF8)
                 {
+                    int numUnsavedFiles = stl1300Workaround.ShouldBeApplied ? 2 : 1;
+                    Span<CXUnsavedFile> unsavedFiles = stackalloc CXUnsavedFile[numUnsavedFiles];
+
                     CXTranslationUnit translationUnit;
 
                     var rootFileNameUTF8 = Marshal.StringToHGlobalAnsi(rootFileName);
 
-                    translationUnit = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray,new CXUnsavedFile[]
-                    {
-                        new CXUnsavedFile()
-                        {
-                            Contents = (sbyte*) rootFileContentUTF8Ptr,
-                            Filename = (sbyte*) rootFileNameUTF8,
-                            Length = new UIntPtr((uint)rootFileContentUTF8.Length)
+                    unsavedFiles[0] = new CXUnsavedFile() {
+                        Contents = (sbyte*)rootFileContentUTF8Ptr,
+                        Filename = (sbyte*)rootFileNameUTF8,
+                        Length = new UIntPtr((uint)rootFileContentUTF8.Length)
 
-                        }
-                    }, translationFlags);
+                    };
+
+                    if (stl1300Workaround.ShouldBeApplied) { unsavedFiles[1] = stl1300Workaround.UnsavedFile; }
+
+                    translationUnit = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray, unsavedFiles, translationFlags);
 
                     bool skipProcessing = false;
 

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
-    <RuntimeIdentifiers>win7-x86;win7-x64;osx;linux-x64</RuntimeIdentifiers>
+    <TargetFrameworks>net5.0</TargetFrameworks>
+    <RuntimeIdentifiers>win-x86;win-x64;linux-x64;ubuntu.20.04-x64</RuntimeIdentifiers>
     <VersionPrefix>0.8.0</VersionPrefix>
     <VersionSuffix>alpha</VersionSuffix>
     <BuildNumber>001</BuildNumber>
@@ -16,7 +16,7 @@
     <PackageLicenseExpression>BSD-2-Clause</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/xoofx/CppAst</RepositoryUrl>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>9.0</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NeutralLanguage>en-US</NeutralLanguage>
     <VersionSuffix Condition="'$(VersionSuffix)' != '' AND '$(BuildNumber)' != ''">$(VersionSuffix)-$(BuildNumber)</VersionSuffix>
@@ -30,6 +30,8 @@
 
   <ItemGroup>
     <PackageReference Include="ClangSharp" Version="10.0.0-beta" />
+    <!-- This package is needed to support __HACK__Stl1300Workaround -->
+    <PackageReference Include="Microsoft.VisualStudio.Setup.Configuration.Interop" Version="2.3.2262-g94fae01e" />
   </ItemGroup>
 
   <ItemGroup>
