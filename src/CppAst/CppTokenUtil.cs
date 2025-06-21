@@ -2,13 +2,14 @@
 // Licensed under the BSD-Clause 2 license.
 // See license.txt file in the project root for full license information.
 
+using ClangSharp;
+using ClangSharp.Interop;
+using Irony.Parsing;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Text;
-using ClangSharp;
-using ClangSharp.Interop;
 
 namespace CppAst
 {
@@ -439,6 +440,7 @@ namespace CppAst
         [DebuggerTypeProxy(typeof(TokenizerDebuggerType))]
         internal class Tokenizer
         {
+            private readonly CXToken[] _tokens;
             private readonly CXSourceRange _range;
             private CppToken[] _cppTokens;
             protected readonly CXTranslationUnit _tu;
@@ -447,29 +449,22 @@ namespace CppAst
             {
                 _tu = cursor.TranslationUnit;
                 _range = GetRange(cursor);
+                _tokens = _tu.Tokenize(_range).ToArray();
             }
 
             public Tokenizer(CXTranslationUnit tu, CXSourceRange range)
             {
                 _tu = tu;
                 _range = range;
-            }
+                _tokens = _tu.Tokenize(_range).ToArray();
+             }
 
             public virtual CXSourceRange GetRange(CXCursor cursor)
             {
                 return cursor.Extent;
             }
 
-            public int Count
-            {
-                get
-                {
-                    var tokens = _tu.Tokenize(_range);
-                    int length = tokens.Length;
-                    _tu.DisposeTokens(tokens);
-                    return length;
-                }
-            }
+            public int Count => _tokens?.Length ?? 0;
 
             public CppToken this[int i]
             {
@@ -478,7 +473,7 @@ namespace CppAst
                     // Only create a tokenizer if necessary
                     if (_cppTokens == null)
                     {
-                        _cppTokens = new CppToken[Count];
+                        _cppTokens = new CppToken[_tokens.Length];
                     }
 
                     ref var cppToken = ref _cppTokens[i];
@@ -486,8 +481,8 @@ namespace CppAst
                     {
                         return cppToken;
                     }
-                    var tokens = _tu.Tokenize(_range);
-                    var token = tokens[i];
+
+                    var token = _tokens[i];
 
                     CppTokenKind cppTokenKind = 0;
                     switch (token.Kind)
@@ -519,30 +514,31 @@ namespace CppAst
                     {
                         Span = new CppSourceSpan(CppModelBuilder.GetSourceLocation(tokenRange.Start), CppModelBuilder.GetSourceLocation(tokenRange.End))
                     };
-                    _tu.DisposeTokens(tokens);
+                    //_tu.DisposeTokens(tokens);
                     return cppToken;
                 }
             }
 
             public string GetString(int i)
             {
-                var tokens = _tu.Tokenize(_range);
-                var TokenSpelling = CXUtil.GetTokenSpelling(tokens[i], _tu);
-                _tu.DisposeTokens(tokens);
-                return TokenSpelling;
+                var token = _tokens[i];
+                return token.GetSpelling(_tu).CString;
             }
 
             public string TokensToString()
             {
+                if (_tokens == null)
+                  return null;
+
                 int length = Count;
                 if (length <= 0)
                 {
                     return null;
                 }
 
-                var tokens = new List<CppToken>(length);
+                var tokens = new List<CppToken>(_tokens.Length);
 
-                for (int i = 0; i < length; i++)
+                for (int i = 0; i < _tokens.Length; i++)
                 {
                     tokens.Add(this[i]);
                 }
@@ -961,6 +957,11 @@ namespace CppAst
 
         private static bool ParseAttributes(CppGlobalDeclarationContainer globalContainer, TokenIterator tokenIt, ref List<CppAttribute> attributes)
         {
+            if (tokenIt.Peek() == null)
+            {
+                return false;
+            }
+
             // Parse C++ attributes
             // [[<attribute>]]
             if (tokenIt.Skip("[", "["))
@@ -1032,31 +1033,31 @@ namespace CppAst
                 return tokenIt.Skip(")"); ;
             }
 
-            // See if we have a macro
-            var value = tokenIt.PeekText();
-            var macro = globalContainer.Macros.Find(v => v.Name == value);
-            if (macro != null)
-            {
-                if (macro.Value.StartsWith("[[") && macro.Value.EndsWith("]]"))
-                {
-                    CppAttribute attribute = null;
-                    var fullAttribute = macro.Value.Substring(2, macro.Value.Length - 4);
-                    var (scope, name) = GetNameSpaceAndAttribute(fullAttribute);
-                    var (attributeName, arguments) = GetNameAndArguments(name);
+            //// See if we have a macro
+            //var value = tokenIt.PeekText();
+            //var macro = globalContainer.Macros.Find(v => v.Name == value);
+            //if (macro != null)
+            //{
+            //    if (macro.Value.StartsWith("[[") && macro.Value.EndsWith("]]"))
+            //    {
+            //        CppAttribute attribute = null;
+            //        var fullAttribute = macro.Value.Substring(2, macro.Value.Length - 4);
+            //        var (scope, name) = GetNameSpaceAndAttribute(fullAttribute);
+            //        var (attributeName, arguments) = GetNameAndArguments(name);
 
-                    attribute = new CppAttribute(attributeName, AttributeKind.TokenAttribute);
-                    attribute.Scope = scope;
-                    attribute.Arguments = arguments;
+            //        attribute = new CppAttribute(attributeName, AttributeKind.TokenAttribute);
+            //        attribute.Scope = scope;
+            //        attribute.Arguments = arguments;
 
-                    if (attributes == null)
-                    {
-                        attributes = new List<CppAttribute>();
-                    }
-                    attributes.Add(attribute);
-                    tokenIt.Next();
-                    return true;
-                }
-            }
+            //        if (attributes == null)
+            //        {
+            //            attributes = new List<CppAttribute>();
+            //        }
+            //        attributes.Add(attribute);
+            //        tokenIt.Next();
+            //        return true;
+            //    }
+            //}
 
             return false;
         }
